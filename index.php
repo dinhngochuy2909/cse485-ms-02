@@ -9,7 +9,33 @@ foreach ($categories as $category) {
     $categoryMap[$category['id']] = $category['name'];
 }
 
+$categoryId = isset($_GET['category_id']) ? (int)$_GET['category_id'] : null;
+
+$filteredProducts = filterByCategory($products, $categoryId);
+
 $totalInventory = inventoryValue($products);
+
+$report = [];
+
+foreach ($categories as $category) {
+
+    $count = countByCategory($products, $category['id']);
+
+    $value = 0;
+
+    foreach ($products as $product) {
+
+        if ($product['category_id'] === $category['id']) {
+            $value += lineTotal($product);
+        }
+    }
+
+    $report[] = [
+        'name' => $category['name'],
+        'count' => $count,
+        'value' => $value
+    ];
+}
 
 ?>
 
@@ -20,27 +46,34 @@ $totalInventory = inventoryValue($products);
 
 <meta charset="UTF-8">
 
-<title>MiniShop - Buoi 2</title>
+<title>MiniShop - Homework</title>
 
 <style>
 
 body{
-    font-family:Arial;
+    font-family: Arial;
     margin:30px;
 }
 
 table{
     border-collapse:collapse;
-    width:900px;
+    width:100%;
+    margin-bottom:20px;
 }
 
 th,td{
-    border:1px solid black;
+    border:1px solid #000;
     padding:8px;
+    text-align:left;
 }
 
 th{
-    background:#eeeeee;
+    background:#f2f2f2;
+}
+
+a{
+    margin-right:10px;
+    text-decoration:none;
 }
 
 </style>
@@ -49,45 +82,69 @@ th{
 
 <body>
 
-<h2>MiniShop - Buoi 2</h2>
+<h2>MiniShop - Homework</h2>
+
+<p>
+
+<a href="index.php">Tat ca</a>
+
+<a href="?category_id=1">Ban phim</a>
+
+<a href="?category_id=2">Chuot</a>
+
+<a href="?category_id=3">Man hinh</a>
+
+</p>
 
 <table>
 
 <tr>
-    <th>SKU</th>
-    <th>Ten</th>
-    <th>Danh muc</th>
-    <th>Gia</th>
-    <th>So luong</th>
-    <th>Thanh tien</th>
-    <th>Muc ton</th>
+
+<th>SKU</th>
+<th>Ten</th>
+<th>Danh muc</th>
+<th>Gia</th>
+<th>So luong</th>
+<th>Thanh tien</th>
+<th>Muc ton</th>
+
 </tr>
 
-<?php foreach($products as $product): ?>
+<?php renderProductRows($filteredProducts, $categoryMap); ?>
+
+</table>
+
+<h3>Tong gia tri kho = <?= $totalInventory ?></h3>
+
+<h3>Quy mo kho: <?= rankInventory($totalInventory) ?></h3>
+
+<h2>Bao cao theo danh muc</h2>
+
+<table>
 
 <tr>
 
-<td><?= htmlspecialchars($product['sku']) ?></td>
+<th>Danh muc</th>
+<th>So SP</th>
+<th>Tong gia tri</th>
 
-<td><?= htmlspecialchars($product['name']) ?></td>
+</tr>
 
-<td><?= htmlspecialchars($categoryMap[$product['category_id']]) ?></td>
+<?php foreach($report as $item): ?>
 
-<td><?= $product['price'] ?></td>
+<tr>
 
-<td><?= $product['qty'] ?></td>
+<td><?= htmlspecialchars($item['name']) ?></td>
 
-<td><?= lineTotal($product) ?></td>
+<td><?= $item['count'] ?></td>
 
-<td><?= stockLevel($product) ?></td>
+<td><?= $item['value'] ?></td>
 
 </tr>
 
 <?php endforeach; ?>
 
 </table>
-
-<h3>Tong gia tri kho = <?= $totalInventory ?></h3>
 
 <pre>
 
@@ -96,6 +153,8 @@ var_dump(findProductBySku($products, "MN-02"));
 ?>
 
 </pre>
+
+<!-- MS_EXPECT inventory_value=41380000 rank=Lon -->
 
 </body>
 
