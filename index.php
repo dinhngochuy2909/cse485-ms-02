@@ -1,161 +1,120 @@
 <?php
+// helpers.php — CHỈ chứa hàm, không echo HTML dài (trừ renderProductRows chỉ echo <tr>...</tr>)
 
-require_once "data.php";
-require_once "helpers.php";
-
-$categoryMap = [];
-
-foreach ($categories as $category) {
-    $categoryMap[$category['id']] = $category['name'];
+/**
+ * Tính thành tiền của 1 sản phẩm.
+ */
+function lineTotal(array $product): int
+{
+    return $product['price'] * $product['qty'];
 }
 
-$categoryId = isset($_GET['category_id']) ? (int)$_GET['category_id'] : null;
+/**
+ * Tổng giá trị toàn bộ kho.
+ */
+function inventoryValue(array $products): int
+{
+    $sum = 0;
+    foreach ($products as $p) {
+        $sum += lineTotal($p);
+    }
+    return $sum;
+}
 
-$filteredProducts = filterByCategory($products, $categoryId);
-
-$totalInventory = inventoryValue($products);
-
-$report = [];
-
-foreach ($categories as $category) {
-
-    $count = countByCategory($products, $category['id']);
-
-    $value = 0;
-
-    foreach ($products as $product) {
-
-        if ($product['category_id'] === $category['id']) {
-            $value += lineTotal($product);
+/**
+ * Tìm sản phẩm theo SKU. Không tìm thấy -> null.
+ */
+function findProductBySku(array $products, string $sku): ?array
+{
+    foreach ($products as $p) {
+        if ($p['sku'] === $sku) {
+            return $p;
         }
     }
-
-    $report[] = [
-        'name' => $category['name'],
-        'count' => $count,
-        'value' => $value
-    ];
+    return null;
 }
 
-?>
-
-<!DOCTYPE html>
-<html lang="vi">
-
-<head>
-
-<meta charset="UTF-8">
-
-<title>MiniShop - Homework</title>
-
-<style>
-
-body{
-    font-family: Arial;
-    margin:30px;
+/**
+ * Đếm số sản phẩm thuộc 1 category_id.
+ */
+function countByCategory(array $products, int $categoryId): int
+{
+    $count = 0;
+    foreach ($products as $p) {
+        if ($p['category_id'] === $categoryId) {
+            $count++;
+        }
+    }
+    return $count;
 }
 
-table{
-    border-collapse:collapse;
-    width:100%;
-    margin-bottom:20px;
+/**
+ * Mức tồn kho theo số lượng.
+ * Thứ tự bắt buộc: >= 5 kiểm tra TRƯỚC, rồi mới >= 2.
+ */
+function stockLevel(array $product): string
+{
+    $qty = $product['qty'];
+    if ($qty >= 5) {
+        return 'Du';
+    } elseif ($qty >= 2) {
+        return 'Sap het';
+    } else {
+        return 'Can nhap';
+    }
 }
 
-th,td{
-    border:1px solid #000;
-    padding:8px;
-    text-align:left;
+/**
+ * Lọc sản phẩm theo category_id. Nếu $categoryId = null -> trả về nguyên mảng (8 SP).
+ */
+function filterByCategory(array $products, ?int $categoryId): array
+{
+    if ($categoryId === null) {
+        return $products;
+    }
+
+    $result = [];
+    foreach ($products as $p) {
+        if ($p['category_id'] === $categoryId) {
+            $result[] = $p;
+        }
+    }
+    return $result;
 }
 
-th{
-    background:#f2f2f2;
+/**
+ * Xếp hạng quy mô kho dựa trên tổng giá trị.
+ */
+function rankInventory(int $totalValue): string
+{
+    if ($totalValue < 15_000_000) {
+        return 'Nho';
+    } elseif ($totalValue < 35_000_000) {
+        return 'Trung binh';
+    } else {
+        return 'Lon';
+    }
 }
 
-a{
-    margin-right:10px;
-    text-decoration:none;
+/**
+ * Render các dòng <tr> của bảng sản phẩm (bao gồm cột Muc ton).
+ * Chỉ echo <tr>...</tr>, không echo <table>/<thead>.
+ */
+function renderProductRows(array $products, array $categoryMap): void
+{
+    foreach ($products as $p) {
+        $tenDm = $categoryMap[$p['category_id']] ?? '—';
+        $thanhTien = lineTotal($p);
+        $mucTon = stockLevel($p);
+
+        echo '<tr>';
+        echo '<td>' . htmlspecialchars($p['sku'], ENT_QUOTES, 'UTF-8') . '</td>';
+        echo '<td>' . htmlspecialchars($p['name'], ENT_QUOTES, 'UTF-8') . '</td>';
+        echo '<td>' . htmlspecialchars($tenDm, ENT_QUOTES, 'UTF-8') . '</td>';
+        echo '<td class="number">' . number_format($p['price'], 0, ',', '.') . '</td>';
+        echo '<td class="number">' . $p['qty'] . '</td>';
+        echo '<td class="number">' . number_format($thanhTien, 0, ',', '.') . '</td>';
+        echo '<td>' . htmlspecialchars($mucTon, ENT_QUOTES, 'UTF-8') . '</td>';
+        echo '</tr>';
+    }
 }
-
-</style>
-
-</head>
-
-<body>
-
-<h2>MiniShop - Homework</h2>
-
-<p>
-
-<a href="index.php">Tat ca</a>
-
-<a href="?category_id=1">Ban phim</a>
-
-<a href="?category_id=2">Chuot</a>
-
-<a href="?category_id=3">Man hinh</a>
-
-</p>
-
-<table>
-
-<tr>
-
-<th>SKU</th>
-<th>Ten</th>
-<th>Danh muc</th>
-<th>Gia</th>
-<th>So luong</th>
-<th>Thanh tien</th>
-<th>Muc ton</th>
-
-</tr>
-
-<?php renderProductRows($filteredProducts, $categoryMap); ?>
-
-</table>
-
-<h3>Tong gia tri kho = <?= $totalInventory ?></h3>
-
-<h3>Quy mo kho: <?= rankInventory($totalInventory) ?></h3>
-
-<h2>Bao cao theo danh muc</h2>
-
-<table>
-
-<tr>
-
-<th>Danh muc</th>
-<th>So SP</th>
-<th>Tong gia tri</th>
-
-</tr>
-
-<?php foreach($report as $item): ?>
-
-<tr>
-
-<td><?= htmlspecialchars($item['name']) ?></td>
-
-<td><?= $item['count'] ?></td>
-
-<td><?= $item['value'] ?></td>
-
-</tr>
-
-<?php endforeach; ?>
-
-</table>
-
-<pre>
-
-<?php
-var_dump(findProductBySku($products, "MN-02"));
-?>
-
-</pre>
-
-<!-- MS_EXPECT inventory_value=41380000 rank=Lon -->
-
-</body>
-
-</html>

@@ -1,95 +1,119 @@
 <?php
+require_once __DIR__ . '/data.php';
+require_once __DIR__ . '/helpers.php';
 
-function lineTotal(array $product): int
-{
-    return $product['price'] * $product['qty'];
+// Map category_id => tên danh mục (dùng lại như Phiếu 01)
+$categoryMap = [];
+foreach ($categories as $c) {
+    $categoryMap[$c['id']] = $c['name'];
 }
 
-function inventoryValue(array $products): int
-{
-    $total = 0;
+// ---- A. Filter theo $_GET['category_id'] ----
+// Không có category_id -> null -> filterByCategory trả về nguyên 8 SP
+$categoryIdParam = $_GET['category_id'] ?? null;
+$selectedCategoryId = ($categoryIdParam === null || $categoryIdParam === '')
+    ? null
+    : (int) $categoryIdParam;
 
-    foreach ($products as $product) {
-        $total += lineTotal($product);
-    }
+$filteredProducts = filterByCategory($products, $selectedCategoryId);
 
-    return $total;
+// ---- B. Tổng giá trị kho + rank (LUÔN tính trên toàn bộ 8 SP, không phụ thuộc filter) ----
+$totalValue = inventoryValue($products);
+$rank = rankInventory($totalValue);
+
+// ---- C. Báo cáo theo 3 danh mục ----
+$report = [];
+foreach ($categories as $c) {
+    $catId = $c['id'];
+    $itemsInCat = filterByCategory($products, $catId);
+    $report[] = [
+        'name'  => $c['name'],
+        'count' => countByCategory($products, $catId),
+        'value' => inventoryValue($itemsInCat),
+    ];
 }
+?>
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <title>MiniShop — Bao cao kho (Buoi 2)</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 24px; }
+        table { border-collapse: collapse; width: 100%; max-width: 950px; margin-bottom: 24px; }
+        th, td { border: 1px solid #ccc; padding: 8px 12px; text-align: left; }
+        th { background: #f2f2f2; }
+        td.number { text-align: right; }
+        tfoot td { font-weight: bold; background: #fafafa; }
+        .filters a { margin-right: 12px; }
+        .filters a.active { font-weight: bold; text-decoration: underline; }
+        .summary { margin-top: 8px; }
+    </style>
+</head>
+<body>
+    <h1>MiniShop — Bao cao kho (Buoi 2)</h1>
 
-function findProductBySku(array $products, string $sku): ?array
-{
-    foreach ($products as $product) {
-        if ($product['sku'] === $sku) {
-            return $product;
-        }
-    }
+    <p class="filters">
+        Loc theo danh muc:
+        <a href="index.php" class="<?php echo $selectedCategoryId === null ? 'active' : ''; ?>">Tat ca</a>
+        <?php foreach ($categories as $c): ?>
+            <a href="index.php?category_id=<?php echo (int) $c['id']; ?>"
+               class="<?php echo $selectedCategoryId === $c['id'] ? 'active' : ''; ?>">
+                <?php echo htmlspecialchars($c['name'], ENT_QUOTES, 'UTF-8'); ?>
+            </a>
+        <?php endforeach; ?>
+    </p>
 
-    return null;
-}
+    <h2>Danh sach san pham (<?php echo count($filteredProducts); ?> dong)</h2>
+    <table>
+        <thead>
+            <tr>
+                <th>SKU</th>
+                <th>Ten</th>
+                <th>Danh muc</th>
+                <th>Gia</th>
+                <th>So luong</th>
+                <th>Thanh tien</th>
+                <th>Muc ton</th>
+            </tr>
+        </thead>
+        <tbody>
+            <?php renderProductRows($filteredProducts, $categoryMap); ?>
+        </tbody>
+    </table>
 
-function countByCategory(array $products, int $categoryId): int
-{
-    $count = 0;
+    <h2>Bao cao theo danh muc</h2>
+    <table>
+        <thead>
+            <tr>
+                <th>Danh muc</th>
+                <th>So SP</th>
+                <th>Tong gia tri</th>
+            </tr>
+        </thead>
+        <tbody>
+            <?php foreach ($report as $r): ?>
+            <tr>
+                <td><?php echo htmlspecialchars($r['name'], ENT_QUOTES, 'UTF-8'); ?></td>
+                <td class="number"><?php echo $r['count']; ?></td>
+                <td class="number"><?php echo number_format($r['value'], 0, ',', '.'); ?></td>
+            </tr>
+            <?php endforeach; ?>
+        </tbody>
+        <tfoot>
+            <tr>
+                <td>Tong cong</td>
+                <td class="number"><?php echo count($products); ?></td>
+                <td class="number"><?php echo number_format($totalValue, 0, ',', '.'); ?></td>
+            </tr>
+        </tfoot>
+    </table>
 
-    foreach ($products as $product) {
-        if ($product['category_id'] === $categoryId) {
-            $count++;
-        }
-    }
+    <div class="summary">
+        <p>Tong gia tri kho (inventoryValue) = <?php echo $totalValue; ?></p>
+        <p>Quy mo kho (rankInventory) = <?php echo htmlspecialchars($rank, ENT_QUOTES, 'UTF-8'); ?></p>
+    </div>
 
-    return $count;
-}
-
-function stockLevel(array $product): string
-{
-    if ($product['qty'] >= 5) {
-        return "Du";
-    } elseif ($product['qty'] >= 2) {
-        return "Sap het";
-    } else {
-        return "Can nhap";
-    }
-}
-
-function filterByCategory(array $products, ?int $categoryId): array
-{
-    if ($categoryId === null) {
-        return $products;
-    }
-
-    $result = [];
-
-    foreach ($products as $product) {
-        if ($product['category_id'] === $categoryId) {
-            $result[] = $product;
-        }
-    }
-
-    return $result;
-}
-
-function rankInventory(int $totalValue): string
-{
-    if ($totalValue < 15000000) {
-        return "Nho";
-    } elseif ($totalValue < 35000000) {
-        return "Trung binh";
-    } else {
-        return "Lon";
-    }
-}
-
-function renderProductRows(array $products, array $categoryMap): void
-{
-    foreach ($products as $product) {
-        echo "<tr>";
-        echo "<td>" . htmlspecialchars($product['sku']) . "</td>";
-        echo "<td>" . htmlspecialchars($product['name']) . "</td>";
-        echo "<td>" . htmlspecialchars($categoryMap[$product['category_id']]) . "</td>";
-        echo "<td>{$product['price']}</td>";
-        echo "<td>{$product['qty']}</td>";
-        echo "<td>" . lineTotal($product) . "</td>";
-        echo "<td>" . stockLevel($product) . "</td>";
-        echo "</tr>";
-    }
-}
+    <!-- MS_EXPECT inventory_value=<?php echo $totalValue; ?> rank=<?php echo $rank; ?> -->
+</body>
+</html>
