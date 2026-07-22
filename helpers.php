@@ -2,14 +2,13 @@
 require_once __DIR__ . '/data.php';
 require_once __DIR__ . '/helpers.php';
 
-// Map category_id => tên danh mục (dùng lại như Phiếu 01)
+// Map category_id => tên danh mục
 $categoryMap = [];
 foreach ($categories as $c) {
     $categoryMap[$c['id']] = $c['name'];
 }
 
 // ---- A. Filter theo $_GET['category_id'] ----
-// Không có category_id -> null -> filterByCategory trả về nguyên 8 SP
 $categoryIdParam = $_GET['category_id'] ?? null;
 $selectedCategoryId = ($categoryIdParam === null || $categoryIdParam === '')
     ? null
@@ -17,7 +16,7 @@ $selectedCategoryId = ($categoryIdParam === null || $categoryIdParam === '')
 
 $filteredProducts = filterByCategory($products, $selectedCategoryId);
 
-// ---- B. Tổng giá trị kho + rank (LUÔN tính trên toàn bộ 8 SP, không phụ thuộc filter) ----
+// ---- B. Tổng giá trị kho + rank (luôn tính trên toàn bộ 8 SP) ----
 $totalValue = inventoryValue($products);
 $rank = rankInventory($totalValue);
 
